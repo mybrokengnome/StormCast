@@ -289,12 +289,69 @@ class SlideshowWeatherApp {
     img.src = this.images[this.currentImageIndex];
     img.className = "slide-image";
     img.style.opacity = "0";
+    img.style.position = "absolute";
+    img.style.top = "0";
+    img.style.left = "0";
+    img.style.width = "100%";
+    img.style.height = "100%";
+    img.style.transition = "opacity 0.3s ease-in-out";
 
     img.onload = () => {
+      this.fitImageToContainer(img);
       img.style.opacity = "1";
     };
 
     this.slideshowContainer.appendChild(img);
+  }
+
+  fitImageToContainer(img) {
+    const container = this.slideshowContainer;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const containerAspectRatio = containerWidth / containerHeight;
+
+    const imageAspectRatio = img.naturalWidth / img.naturalHeight;
+
+    // Determine if image is portrait, landscape, or square
+    const isPortrait = imageAspectRatio < 1;
+    const isLandscape = imageAspectRatio > 1;
+    const isSquare = Math.abs(imageAspectRatio - 1) < 0.1;
+
+    // Smart fitting based on image orientation and container
+    if (isPortrait) {
+      // Portrait images: fit to height, center horizontally
+      if (imageAspectRatio > containerAspectRatio) {
+        // Image is taller relative to container - fit to width
+        img.style.objectFit = "cover";
+        img.style.objectPosition = "center center";
+      } else {
+        // Image fits better by height - contain it
+        img.style.objectFit = "contain";
+        img.style.objectPosition = "center center";
+      }
+    } else if (isLandscape) {
+      // Landscape images: smart cropping based on aspect ratio difference
+      const aspectRatioDifference = Math.abs(
+        imageAspectRatio - containerAspectRatio
+      );
+
+      if (aspectRatioDifference < 0.5) {
+        // Similar aspect ratios - use cover for better fill
+        img.style.objectFit = "cover";
+        img.style.objectPosition = "center center";
+      } else {
+        // Very different aspect ratios - use contain to show full image
+        img.style.objectFit = "contain";
+        img.style.objectPosition = "center center";
+      }
+    } else {
+      // Square images: always contain to preserve the square
+      img.style.objectFit = "contain";
+      img.style.objectPosition = "center center";
+    }
+
+    // Add background color to fill any gaps
+    img.style.backgroundColor = "transparent";
   }
 
   clearSlideshow() {
