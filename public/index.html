@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1024, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Slideshow Weather Station</title>
+    <link href="./styles/output.css" rel="stylesheet" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body class="h-screen overflow-hidden touch-pan-y bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+    <div class="h-full w-full max-w-[1024px] max-h-[600px] mx-auto grid grid-cols-5 gap-2 p-2" style="height:600px;">
+      <!-- Slideshow Section - Takes up 4/5 of the width -->
+      <div class="col-span-4 slideshow-container rounded-xl">
+        <div id="slideshow" class="h-full relative select-none rounded-xl">
+          <!-- Touch indicators -->
+          <div
+            id="touchIndicatorLeft"
+            class="absolute left-4 top-1/2 transform -translate-y-1/2 opacity-0 transition-opacity duration-200"
+          >
+            <div class="bg-white/20 backdrop-blur-md rounded-full p-4">
+              <svg
+                class="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M15 19l-7-7 7-7"
+                ></path>
+              </svg>
+            </div>
+          </div>
+          <div
+            id="touchIndicatorRight"
+            class="absolute right-4 top-1/2 transform -translate-y-1/2 opacity-0 transition-opacity duration-200"
+          >
+            <div class="bg-white/20 backdrop-blur-md rounded-full p-4">
+              <svg
+                class="w-8 h-8 text-white"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M9 5l7 7-7 7"
+                ></path>
+              </svg>
+            </div>
+          </div>
+
+          <div id="no-images" class="flex items-center justify-center h-full">
+            <div class="text-center text-white">
+              <svg
+                class="w-24 h-24 mx-auto mb-4 opacity-50"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                ></path>
+              </svg>
+              <h3 class="text-2xl font-semibold mb-2">No Images Yet</h3>
+              <p class="text-gray-300">
+                Send photos to mybrokengnome@gmail.com
+              </p>
+              <p class="text-gray-400 text-sm mt-2">
+                Swipe left/right to navigate • Tap to pause
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Enhanced Slideshow Controls with touch feedback -->
+        <div
+          class="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1 opacity-80 hover:opacity-100 transition-opacity touch-controls"
+        >
+          <button
+            id="prevBtn"
+            class="bg-black/50 hover:bg-black/70 active:bg-black/80 text-white p-4 rounded-full backdrop-blur-md transition-all transform active:scale-95 touch-manipulation"
+          >
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              ></path>
+            </svg>
+          </button>
+          <button
+            id="playPauseBtn"
+            class="bg-black/50 hover:bg-black/70 active:bg-black/80 text-white p-4 rounded-full backdrop-blur-md transition-all transform active:scale-95 touch-manipulation"
+          >
+            <svg
+              id="playIcon"
+              class="w-6 h-6 hidden"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h.01M19 10a9 9 0 11-18 0 9 9 0 0118 0z"
+              ></path>
+            </svg>
+            <svg
+              id="pauseIcon"
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M10 9v6m4-6v6"
+              ></path>
+            </svg>
+          </button>
+          <button
+            id="nextBtn"
+            class="bg-black/50 hover:bg-black/70 active:bg-black/80 text-white p-4 rounded-full backdrop-blur-md transition-all transform active:scale-95 touch-manipulation"
+          >
+            <svg
+              class="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              ></path>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Progress indicator -->
+        <div
+          id="progressBar"
+          class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-20 h-0.5 bg-white/20 rounded-full overflow-hidden"
+        >
+          <div
+            id="progressFill"
+            class="h-full bg-white/60 rounded-full transition-all duration-100"
+          ></div>
+        </div>
+      </div>
+      <!-- Weather Section - Takes up 1/5 of the width -->
+      <div class="space-y-1 overflow-y-auto touch-pan-y">
+        <!-- Time and Date -->
+        <div
+          class="weather-card animate-slide-up"
+          style="animation-delay: 0.2s"
+        >
+          <div class="text-center">
+            <div id="currentTime" class="text-3xl font-bold text-white mb-2">
+              --:--
+            </div>
+            <div id="currentDate" class="text-white/80">Loading...</div>
+          </div>
+        </div>
+        <!-- Current Weather -->
+        <div class="weather-card animate-slide-up">
+          <div class="text-center">
+            <div class="text-white/80 text-sm font-bold mb-2">
+              Current Weather
+            </div>
+            <div class="flex items-center justify-center mb-4">
+              <img
+                id="weatherIcon"
+                class="weather-icon"
+                src=""
+                alt=""
+                style="display: none"
+              />
+              <div class="ml-4">
+                <div id="temperature" class="text-4xl font-bold text-white">
+                  --°F
+                </div>
+                <div id="weatherDescription" class="text-white/80 capitalize">
+                  Loading...
+                </div>
+              </div>
+            </div>
+            <div id="location" class="text-white text-sm">--</div>
+          </div>
+        </div>
+
+        <!-- Weather Details -->
+        <div
+          class="weather-card animate-slide-up"
+          style="animation-delay: 0.1s"
+        >
+          <div class="text-white/80 text-sm mb-4 font-bold">Details</div>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center">
+              <span class="text-white">Feels Like</span>
+              <span id="feelsLike" class="text-white font-medium">--°F</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-white">Humidity</span>
+              <span id="humidity" class="text-white font-medium">--%</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-white">Wind</span>
+              <span id="windSpeed" class="text-white font-medium">-- mph</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-white">Pressure</span>
+              <span id="pressure" class="text-white font-medium">-- inHg</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div
+          class="weather-card animate-slide-up"
+          style="animation-delay: 0.3s"
+        >
+          <div class="text-white/80 text-sm font-bold mb-2">System Status</div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-white text-sm">Email</span>
+              <div class="flex items-center">
+                <div
+                  id="emailStatus"
+                  class="w-2 h-2 rounded-full bg-gray-500 mr-2"
+                ></div>
+                <span id="emailStatusText" class="text-white text-xs"
+                  >Checking...</span
+                >
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-white text-sm">Weather</span>
+              <div class="flex items-center">
+                <div
+                  id="weatherStatus"
+                  class="w-2 h-2 rounded-full bg-gray-500 mr-2"
+                ></div>
+                <span id="weatherStatusText" class="text-white text-xs"
+                  >Loading...</span
+                >
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-white text-sm">Images</span>
+              <span id="imageCount" class="text-white text-xs">0 photos</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="./js/app.js"></script>
+  </body>
+</html>
+</html>
