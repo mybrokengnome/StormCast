@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: Inter, system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 overflow-hidden;
+  }
+}
+
+@layer components {
+  .weather-card {
+    @apply bg-white/10 backdrop-blur-md border border-white/20 rounded-lg p-2 shadow-xl;
+  }
+
+  .slideshow-container {
+    @apply relative overflow-hidden rounded-xl shadow-2xl bg-gray-900/50 backdrop-blur-md;
+    min-height: 350px;
+    max-height: 596px;
+  }
+
+  .weather-icon {
+    @apply w-8 h-8 drop-shadow-lg;
+  }
+
+  .slide-image {
+    @apply w-full h-full object-cover transition-opacity duration-500;
+    touch-action: manipulation;
+    border-radius: 0.75rem;
+  }
+
+  .touch-controls {
+    @apply opacity-80;
+  }
+}
+
+@layer utilities {
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+
+  .touch-pan-x {
+    touch-action: pan-x;
+  }
+
+  .touch-pan-y {
+    touch-action: pan-y;
+  }
+
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+}
+
+/* 1024x600 specific optimizations */
+@media (max-width: 1040px), (max-height: 620px) {
+  html,
+  body {
+    font-size: 14px;
+  }
+
+  .weather-card {
+    padding: 0.5rem;
+  }
+
+  .slide-image {
+    border-radius: 0.75rem;
+  }
+
+  .slideshow-container {
+    min-height: 320px;
+    max-height: 596px;
+  }
+}
