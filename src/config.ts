@@ -1,5 +1,17 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import fs from "node:fs";
 import path from "node:path";
+
+// Resolve everything relative to the project folder, not the shell's working
+// directory, so launching from pm2, systemd or another folder still works.
+export const projectRoot = path.resolve(__dirname, "..");
+const envPath = path.join(projectRoot, ".env");
+export const envLoaded = fs.existsSync(envPath);
+if (envLoaded) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config();
+}
 
 const PLACEHOLDERS = new Set([
   "",
@@ -40,7 +52,7 @@ const flag = (name: string, fallback: boolean) => {
 
 export const config = {
   port: num("PORT", 3000),
-  imageDirectory: path.resolve(str("IMAGE_DIRECTORY", "./uploads/images")),
+  imageDirectory: path.resolve(projectRoot, str("IMAGE_DIRECTORY", "./uploads/images")),
   maxImages: num("MAX_IMAGES", 200),
   slideshowIntervalMs: num("SLIDESHOW_INTERVAL", 10_000),
   radarEvery: Math.round(num("RADAR_EVERY", 5)),

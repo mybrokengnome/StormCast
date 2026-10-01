@@ -1,4 +1,4 @@
-import { config } from "./config";
+import { config, envLoaded, projectRoot } from "./config";
 import express from "express";
 import helmet from "helmet";
 import path from "node:path";
@@ -114,6 +114,16 @@ app.use("/api", (_req, res) => {
 
 const server = app.listen(config.port, () => {
   console.log(`🚀 StormCast running at http://localhost:${config.port}`);
+  console.log(
+    envLoaded
+      ? `⚙️  Loaded ${path.join(projectRoot, ".env")}`
+      : `⚙️  No .env found at ${path.join(projectRoot, ".env")}; using defaults and process environment`
+  );
+  console.log(
+    `⚙️  Email ${config.email.configured ? `on (${config.email.user})` : "off"}, ` +
+      `weather ${config.weather.configured ? "on" : "off"}, ` +
+      `radar ${config.radar.station}, alerts ${config.alerts.enabled ? "on" : "off"}`
+  );
   console.log(`🖼️  Photos folder: ${imageService.directory}`);
   void weatherService.start();
   void radarService.start();
