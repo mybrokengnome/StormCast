@@ -64,6 +64,7 @@ export const config = {
   maxImages: num("MAX_IMAGES", 200),
   slideshowIntervalMs: num("SLIDESHOW_INTERVAL", 10_000),
   radarEvery: Math.round(num("RADAR_EVERY", 5)),
+  radarDurationMs: num("RADAR_DURATION", 15_000),
   slideshowOrder: slideshowOrder as "smart" | "shuffle" | "newest",
 
   email: {

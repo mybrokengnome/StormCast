@@ -121,6 +121,7 @@
         requiredSubject: "slideshow",
         radarStation: "",
         slideshowOrder: "smart",
+        radarDurationMs: 15000,
       };
       this.images = [];
       this.current = null;
@@ -139,7 +140,10 @@
       this.loadToken = 0;
       this.activeLayer = -1;
       this.radar = { available: false, url: null, updatedAt: null };
+      this.pendingRadarUrl = null;
+      this.radarImageReady = false;
       this.pointer = null;
+      this.swallowClick = false;
 
       this.stage = $("stage");
       this.layers = [...this.stage.querySelectorAll(".slide")];
@@ -175,12 +179,42 @@
     // ---- Events -------------------------------------------------------------
 
     bindEvents() {
-      $("prevBtn").addEventListener("click", () => this.previous());
-      $("nextBtn").addEventListener("click", () => this.next());
-      $("playBtn").addEventListener("click", () => this.togglePlay());
-      $("radarBtn").addEventListener("click", () => this.showRadar(true));
+      const button = (id, action) =>
+        $(id).addEventListener("click", () => {
+          action();
+          this.revealUi();
+        });
+      button("prevBtn", () => this.previous());
+      button("nextBtn", () => this.next());
+      button("playBtn", () => this.togglePlay());
+      button("radarBtn", () => this.showRadar(true));
+
+      // After a touch, the browser fires a synthetic click and hit-tests again.
+      // If that tap just revealed the controls, the click would land on a button
+      // that was invisible when the finger went down. Swallow that one click.
+      this.stage.addEventListener(
+        "click",
+        (e) => {
+          if (!this.swallowClick) return;
+          this.swallowClick = false;
+          e.stopPropagation();
+          e.preventDefault();
+        },
+        true
+      );
+
+      const radarImage = $("radarImage");
+      radarImage.addEventListener("load", () => {
+        this.radarImageReady = true;
+        $("radarEmpty").classList.add("hidden");
+      });
+      radarImage.addEventListener("error", () => {
+        this.radarImageReady = false;
+        if (this.radar.available) this.setRadarMessage("Radar failed to load");
+      });
 
       this.stage.addEventListener("pointerdown", (e) => {
+        this.swallowClick = false;
         if (e.target.closest("button")) {
           this.pointer = null;
           return;
@@ -198,7 +232,12 @@
           dx < 0 ? this.next() : this.previous();
           this.revealUi();
         } else if (Math.abs(dx) < 12 && Math.abs(dy) < 12 && dt < 500) {
-          this.stage.classList.contains("show-ui") ? this.hideUi() : this.revealUi();
+          if (this.stage.classList.contains("show-ui")) {
+            this.hideUi();
+          } else {
+            this.revealUi();
+            this.swallowClick = true;
+          }
         }
       });
       this.stage.addEventListener("pointercancel", () => (this.pointer = null));
@@ -355,12 +394,24 @@
       $("radarUpdated").textContent = this.radar.updatedAt ? `Updated ${fmt.relative(this.radar.updatedAt)}` : "";
       $("counter").textContent = "Radar";
       this.stage.classList.toggle("radar-only", this.images.length === 0);
+      if (!this.radarImageReady) this.setRadarMessage("Loading radar…");
       this.scheduleAdvance();
+    }
+
+    setRadarMessage(text) {
+      const el = $("radarEmpty");
+      el.textContent = text;
+      el.classList.remove("hidden");
     }
 
     hideRadarSlide() {
       this.showingRadar = false;
       this.stage.classList.remove("radar-only");
+      if (this.pendingRadarUrl) {
+        // A newer radar frame arrived while the radar was on screen; swap it in now.
+        $("radarImage").src = this.pendingRadarUrl;
+        this.pendingRadarUrl = null;
+      }
       $("radarSlide").classList.remove("active");
       $("radarSlide").setAttribute("aria-hidden", "true");
     }
@@ -396,7 +447,7 @@
       clearTimeout(this.advanceTimer);
       this.resetProgress();
       if (!this.playing || !this.images.length) return;
-      const ms = this.config.slideshowIntervalMs;
+      const ms = this.showingRadar ? this.config.radarDurationMs : this.config.slideshowIntervalMs;
       this.animateProgress(ms);
       this.advanceTimer = setTimeout(() => this.next(), ms);
     }
@@ -422,6 +473,7 @@
         this.scheduleAdvance();
       } else {
         clearTimeout(this.advanceTimer);
+        this.advanceTimer = null;
         const width = getComputedStyle(this.progressFill).width;
         this.progressFill.style.transition = "none";
         this.progressFill.style.width = width;
@@ -505,8 +557,25 @@
         const info = await getJson("/api/radar");
         const changed = info.url && info.url !== this.radar.url;
         this.radar = info;
-        $("radarEmpty").classList.toggle("hidden", info.available);
-        if (changed) $("radarImage").src = info.url;
+        if (!info.available) {
+          this.radarImageReady = false;
+          this.setRadarMessage("Radar unavailable");
+        }
+        if (changed) {
+          if (!this.radarImageReady) {
+            $("radarImage").src = info.url;
+          } else {
+            // Fetch the new frame in the background, then swap it in when the
+            // radar is not on screen so it never blanks out mid-view.
+            const preload = new Image();
+            preload.onload = () => {
+              if (this.radar.url !== info.url) return;
+              if (this.showingRadar) this.pendingRadarUrl = info.url;
+              else $("radarImage").src = info.url;
+            };
+            preload.src = info.url;
+          }
+        }
         if (this.showingRadar && info.updatedAt) {
           $("radarUpdated").textContent = `Updated ${fmt.relative(info.updatedAt)}`;
         }
@@ -701,6 +770,8 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    new StormCast().init().catch((error) => console.error("StormCast failed to start:", error));
+    const app = new StormCast();
+    window.stormcast = app; // handy for debugging from the console
+    app.init().catch((error) => console.error("StormCast failed to start:", error));
   });
 })();

@@ -49,6 +49,7 @@ app.get("/api/config", (_req, res) => {
     requiredSubject: config.email.requiredSubject,
     slideshowIntervalMs: config.slideshowIntervalMs,
     radarEvery: config.radarEvery,
+    radarDurationMs: config.radarDurationMs,
     slideshowOrder: config.slideshowOrder,
     radarStation: config.radar.station,
     units: config.weather.units,

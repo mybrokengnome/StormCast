@@ -35,7 +35,7 @@ npm run dev
 
 ## Configuration
 
-All settings live in `.env` (see `.env.example` for every option).
+All settings live in `.env` (see `.env.example` for every option). The file is read from the project folder regardless of where the server is launched from, and its values take precedence over variables already in the environment.
 
 | Variable | What it does |
 | --- | --- |
@@ -49,6 +49,7 @@ All settings live in `.env` (see `.env.example` for every option).
 | `SLIDESHOW_INTERVAL` | Milliseconds per photo (default 10000). |
 | `SLIDESHOW_ORDER` | `smart` (default), `shuffle`, or `newest`. |
 | `RADAR_EVERY` | Show radar after every N photos (default 5, `0` to disable). |
+| `RADAR_DURATION` | Milliseconds the radar stays up (default 15000). |
 | `MAX_IMAGES` | Oldest photos are deleted beyond this count (default 200). |
 
 Every unread email in the inbox is fetched and marked as read, whether or not it is accepted, so use a mailbox dedicated to the frame.
