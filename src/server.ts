@@ -124,7 +124,8 @@ const server = app.listen(config.port, () => {
       `weather ${config.weather.configured ? "on" : "off"}, ` +
       `radar ${config.radar.station}, alerts ${config.alerts.enabled ? "on" : "off"}`
   );
-  console.log(`🖼️  Photos folder: ${imageService.directory}`);
+  console.log(`⚙️  Project folder: ${projectRoot} (started from ${process.cwd()})`);
+  console.log(`🖼️  Photos folder: ${imageService.directory} (${imageService.list().length} photos)`);
   void weatherService.start();
   void radarService.start();
   void alertService.start();
