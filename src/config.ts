@@ -5,12 +5,20 @@ import path from "node:path";
 // Resolve everything relative to the project folder, not the shell's working
 // directory, so launching from pm2, systemd or another folder still works.
 export const projectRoot = path.resolve(__dirname, "..");
-const envPath = path.join(projectRoot, ".env");
-export const envLoaded = fs.existsSync(envPath);
-if (envLoaded) {
-  dotenv.config({ path: envPath });
-} else {
-  dotenv.config();
+export const envPath = path.join(projectRoot, ".env");
+
+// Values in .env win over anything already in the process environment, so a
+// stale variable cached by pm2 or systemd cannot shadow the file.
+export const envInfo: { exists: boolean; keys: string[]; error: string | null } = {
+  exists: fs.existsSync(envPath),
+  keys: [],
+  error: null,
+};
+if (envInfo.exists) {
+  const result = dotenv.config({ path: envPath, override: true });
+  envInfo.keys = Object.keys(result.parsed ?? {});
+  envInfo.error = result.error ? result.error.message : null;
+  if (!envInfo.error && envInfo.keys.length === 0) envInfo.error = "file is empty or could not be parsed";
 }
 
 const PLACEHOLDERS = new Set([
