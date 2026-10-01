@@ -1,76 +1,66 @@
-import fs from "fs-extra";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+import { config } from "../config";
+
+export interface ImageEntry {
+  name: string;
+  url: string;
+  addedAt: string;
+}
+
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"]);
+
+export function isImageFile(filename: string | undefined): boolean {
+  return Boolean(filename) && IMAGE_EXTENSIONS.has(path.extname(filename!).toLowerCase());
+}
 
 export class ImageService {
-  private imageDirectory: string;
+  readonly directory = config.imageDirectory;
 
   constructor() {
-    this.imageDirectory = process.env.IMAGE_DIRECTORY || "./uploads/images";
-    fs.ensureDirSync(this.imageDirectory);
+    fs.mkdirSync(this.directory, { recursive: true });
   }
 
-  getImageList(): string[] {
+  list(): ImageEntry[] {
     try {
-      const files = fs.readdirSync(this.imageDirectory);
-      const imageFiles = files
-        .filter((file) => this.isImageFile(file))
-        .map((file) => `/uploads/images/${file}`)
-        .sort((a, b) => {
-          // Sort by modification time, newest first
-          const statA = fs.statSync(
-            path.join(this.imageDirectory, path.basename(a))
-          );
-          const statB = fs.statSync(
-            path.join(this.imageDirectory, path.basename(b))
-          );
-          return statB.mtime.getTime() - statA.mtime.getTime();
-        });
-
-      return imageFiles;
+      return fs
+        .readdirSync(this.directory)
+        .filter(isImageFile)
+        .map((name) => {
+          const mtime = fs.statSync(path.join(this.directory, name)).mtime;
+          return { name, url: `/images/${encodeURIComponent(name)}`, addedAt: mtime.toISOString() };
+        })
+        .sort((a, b) => b.addedAt.localeCompare(a.addedAt));
     } catch (error) {
-      console.error("Failed to get image list:", error);
+      console.error("🖼️  Failed to list images:", error);
       return [];
     }
   }
 
-  private isImageFile(filename: string): boolean {
-    const ext = path.extname(filename).toLowerCase();
-    return [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"].includes(ext);
+  async save(originalName: string, content: Buffer): Promise<string> {
+    const ext = path.extname(originalName).toLowerCase() || ".jpg";
+    const filename = `image_${Date.now()}_${Math.random().toString(36).slice(2, 7)}${ext}`;
+    await fs.promises.writeFile(path.join(this.directory, filename), content);
+    console.log(`💾 Saved image: ${filename}`);
+    this.pruneOldImages();
+    return filename;
   }
 
-  getStatus(): { imageCount: number } {
-    const images = this.getImageList();
-    return { imageCount: images.length };
+  delete(name: string): boolean {
+    const target = path.join(this.directory, path.basename(name));
+    if (!fs.existsSync(target)) return false;
+    fs.unlinkSync(target);
+    console.log(`🗑️  Deleted image: ${name}`);
+    return true;
   }
 
-  deleteImage(filename: string): boolean {
-    try {
-      const filepath = path.join(this.imageDirectory, filename);
-      if (fs.existsSync(filepath)) {
-        fs.unlinkSync(filepath);
-        console.log(`🗑️  Deleted image: ${filename}`);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error("Failed to delete image:", error);
-      return false;
-    }
+  pruneOldImages(): void {
+    const extra = this.list().slice(config.maxImages);
+    for (const image of extra) this.delete(image.name);
+    if (extra.length) console.log(`🧹 Pruned ${extra.length} old image(s)`);
   }
 
-  cleanupOldImages(maxImages: number = 100): void {
-    try {
-      const images = this.getImageList();
-      if (images.length > maxImages) {
-        const imagesToDelete = images.slice(maxImages);
-        imagesToDelete.forEach((imagePath) => {
-          const filename = path.basename(imagePath);
-          this.deleteImage(filename);
-        });
-        console.log(`🧹 Cleaned up ${imagesToDelete.length} old images`);
-      }
-    } catch (error) {
-      console.error("Failed to cleanup old images:", error);
-    }
+  getStatus() {
+    return { count: this.list().length };
   }
 }

@@ -1,213 +1,167 @@
-import Imap from "imap";
-// @ts-ignore
-import { simpleParser } from "mailparser";
-import fs from "fs-extra";
-import path from "path";
+import { ImapFlow } from "imapflow";
+import { simpleParser, type ParsedMail } from "mailparser";
+import { config } from "../config";
+import { ImageService, isImageFile } from "./ImageService";
 
+/**
+ * Polls an IMAP inbox for unread mail from allowed senders whose subject contains
+ * the required keyword, and saves any image attachments to the slideshow folder.
+ *
+ * Every unread message that is fetched is marked as read, whether or not it was
+ * accepted, so a dedicated mailbox is recommended.
+ */
 export class EmailService {
-  private imap: Imap;
-  private isConnected: boolean = false;
-  private checkInterval: number;
-  private intervalId?: NodeJS.Timeout;
-  private imageDirectory: string;
-  private allowedEmails: string[];
-  private requiredSubject: string;
+  private client?: ImapFlow;
+  private timer?: NodeJS.Timeout;
+  private checking = false;
+  private connected = false;
+  private lastCheck?: Date;
+  private lastError?: string;
+  private imagesReceived = 0;
 
-  constructor() {
-    this.checkInterval = parseInt(process.env.EMAIL_CHECK_INTERVAL!) || 30000;
-    this.imageDirectory = process.env.IMAGE_DIRECTORY || "./uploads/images";
-
-    // Parse allowed emails from environment
-    const allowedEmailsEnv =
-      process.env.ALLOWED_EMAILS ||
-      "frame@example.com,sender@example.com";
-    this.allowedEmails = allowedEmailsEnv
-      .split(",")
-      .map((email) => email.trim().toLowerCase());
-
-    this.requiredSubject = (
-      process.env.REQUIRED_SUBJECT || "slideshow"
-    ).toLowerCase();
-
-    this.imap = new Imap({
-      user: process.env.EMAIL_USER!,
-      password: process.env.EMAIL_PASSWORD!,
-      host: process.env.EMAIL_HOST!,
-      port: parseInt(process.env.EMAIL_PORT!) || 993,
-      tls: true,
-      tlsOptions: { rejectUnauthorized: false },
-    });
-
-    this.setupEventHandlers();
-  }
-
-  private setupEventHandlers(): void {
-    this.imap.once("ready", () => {
-      console.log("📧 Email service connected");
-      this.isConnected = true;
-      this.openInbox();
-    });
-
-    this.imap.once("error", (err: Error) => {
-      console.error("Email connection error:", err);
-      this.isConnected = false;
-    });
-
-    this.imap.once("end", () => {
-      console.log("📧 Email connection ended");
-      this.isConnected = false;
-    });
-  }
+  constructor(private readonly images: ImageService) {}
 
   start(): void {
-    console.log("📧 Starting email service...");
-    this.connect();
-
-    this.intervalId = setInterval(() => {
-      if (!this.isConnected) {
-        this.connect();
-      } else {
-        this.checkForNewEmails();
-      }
-    }, this.checkInterval);
+    if (!config.email.configured) {
+      console.warn("📧 EMAIL_USER / EMAIL_PASSWORD not set; email intake is disabled");
+      this.lastError = "Email credentials are not configured";
+      return;
+    }
+    if (config.email.allowedSenders.length === 0) {
+      console.warn("📧 ALLOWED_EMAILS is empty; every sender will be rejected");
+    }
+    console.log(`📧 Starting email service (${config.email.user})...`);
+    void this.check();
+    this.timer = setInterval(() => void this.check(), config.email.checkIntervalMs);
   }
 
-  stop(): void {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-    }
-
-    if (this.isConnected) {
-      this.imap.end();
-    }
+  async stop(): Promise<void> {
+    if (this.timer) clearInterval(this.timer);
+    await this.disconnect();
   }
 
-  private connect(): void {
+  private async connect(): Promise<ImapFlow> {
+    if (this.client?.usable) return this.client;
+    await this.disconnect();
+
+    const client = new ImapFlow({
+      host: config.email.host,
+      port: config.email.port,
+      secure: config.email.port === 993,
+      auth: { user: config.email.user, pass: config.email.password },
+      logger: false,
+      connectionTimeout: 20_000,
+      greetingTimeout: 20_000,
+      socketTimeout: 120_000,
+    });
+
+    client.on("error", (error: Error) => {
+      this.lastError = error.message;
+      this.connected = false;
+      console.error("📧 IMAP error:", error.message);
+    });
+    client.on("close", () => {
+      this.connected = false;
+    });
+
+    await client.connect();
+    this.client = client;
+    this.connected = true;
+    this.lastError = undefined;
+    console.log("📧 Email service connected");
+    return client;
+  }
+
+  private async disconnect(): Promise<void> {
+    const client = this.client;
+    this.client = undefined;
+    this.connected = false;
+    if (!client) return;
     try {
-      this.imap.connect();
-    } catch (error) {
-      console.error("Failed to connect to email:", error);
+      if (client.usable) await client.logout();
+      else client.close();
+    } catch {
+      /* ignore */
     }
   }
 
-  private openInbox(): void {
-    this.imap.openBox("INBOX", false, (err, box) => {
-      if (err) {
-        console.error("Failed to open inbox:", err);
-        return;
-      }
-      this.checkForNewEmails();
-    });
-  }
-
-  private checkForNewEmails(): void {
-    if (!this.isConnected) return;
-
-    // Search for unseen emails
-    this.imap.search(["UNSEEN"], (err, results) => {
-      if (err) {
-        console.error("Email search error:", err);
-        return;
-      }
-
-      if (results.length === 0) return;
-
-      console.log(`Found ${results.length} new emails`);
-      this.processEmails(results);
-    });
-  }
-
-  private processEmails(emailIds: number[]): void {
-    const fetch = this.imap.fetch(emailIds, { bodies: "" });
-
-    fetch.on("message", (msg, seqno) => {
-      msg.on("body", (stream) => {
-        simpleParser(stream, (err: any, parsed: any) => {
-          if (err) {
-            console.error("Email parsing error:", err);
-            return;
-          }
-
-          // Check if email is from allowed sender and has correct subject
-          if (this.isValidSlideshowEmail(parsed)) {
-            this.processAttachments(parsed);
-          } else {
-            console.log(
-              `📧 Ignoring email from ${parsed.from?.text} with subject: ${parsed.subject}`
-            );
-          }
-        });
-      });
-
-      msg.once("attributes", (attrs) => {
-        // Mark as read
-        this.imap.addFlags(attrs.uid, ["\\Seen"], (err) => {
-          if (err) console.error("Failed to mark email as read:", err);
-        });
-      });
-    });
-
-    fetch.once("error", (err) => {
-      console.error("Email fetch error:", err);
-    });
-  }
-
-  private isValidSlideshowEmail(email: any): boolean {
-    // Check sender email
-    const fromEmail = email.from?.value?.[0]?.address?.toLowerCase();
-    if (!fromEmail || !this.allowedEmails.includes(fromEmail)) {
-      console.log(`📧 Email from unauthorized sender: ${fromEmail}`);
-      return false;
-    }
-
-    // Check subject line
-    const subject = email.subject?.toLowerCase() || "";
-    if (!subject.includes(this.requiredSubject)) {
-      console.log(
-        `📧 Email missing required subject '${this.requiredSubject}': ${subject}`
-      );
-      return false;
-    }
-
-    console.log(
-      `📧 Valid slideshow email from ${fromEmail} with subject: ${email.subject}`
-    );
-    return true;
-  }
-
-  private async processAttachments(email: any): Promise<void> {
-    if (!email.attachments || email.attachments.length === 0) return;
-
-    for (const attachment of email.attachments) {
-      if (this.isImageFile(attachment.filename)) {
-        await this.saveImage(attachment);
-      }
-    }
-  }
-
-  private isImageFile(filename: string): boolean {
-    if (!filename) return false;
-    const ext = path.extname(filename).toLowerCase();
-    return [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"].includes(ext);
-  }
-
-  private async saveImage(attachment: any): Promise<void> {
+  private async check(): Promise<void> {
+    if (this.checking) return;
+    this.checking = true;
     try {
-      const timestamp = Date.now();
-      const ext = path.extname(attachment.filename);
-      const filename = `image_${timestamp}${ext}`;
-      const filepath = path.join(this.imageDirectory, filename);
-
-      await fs.ensureDir(this.imageDirectory);
-      await fs.writeFile(filepath, attachment.content);
-
-      console.log(`💾 Saved image: ${filename}`);
+      const client = await this.connect();
+      const lock = await client.getMailboxLock("INBOX");
+      try {
+        const uids = await client.search({ seen: false }, { uid: true });
+        if (uids && uids.length > 0) {
+          console.log(`📧 Found ${uids.length} unread email(s)`);
+          const messages = await client.fetchAll(uids, { uid: true, source: true }, { uid: true });
+          for (const message of messages) {
+            if (message.source) await this.handleMessage(message.source);
+          }
+          await client.messageFlagsAdd(uids, ["\\Seen"], { uid: true });
+        }
+      } finally {
+        lock.release();
+      }
+      this.lastCheck = new Date();
+      this.lastError = undefined;
     } catch (error) {
-      console.error("Failed to save image:", error);
+      this.lastError = error instanceof Error ? error.message : String(error);
+      this.connected = false;
+      console.error("📧 Email check failed:", this.lastError);
+      await this.disconnect();
+    } finally {
+      this.checking = false;
     }
   }
 
-  getStatus(): { connected: boolean } {
-    return { connected: this.isConnected };
+  private async handleMessage(source: Buffer): Promise<void> {
+    let mail: ParsedMail;
+    try {
+      mail = await simpleParser(source);
+    } catch (error) {
+      console.error("📧 Could not parse email:", error);
+      return;
+    }
+
+    const from = mail.from?.value?.[0]?.address?.toLowerCase() ?? "";
+    const subject = mail.subject ?? "";
+
+    if (!config.email.allowedSenders.includes(from)) {
+      console.log(`📧 Ignoring email from unauthorized sender: ${from || "unknown"}`);
+      return;
+    }
+    if (!subject.toLowerCase().includes(config.email.requiredSubject)) {
+      console.log(`📧 Ignoring email without "${config.email.requiredSubject}" in subject: ${subject}`);
+      return;
+    }
+
+    const images = mail.attachments.filter((a) => isImageFile(a.filename) || a.contentType.startsWith("image/"));
+    if (images.length === 0) {
+      console.log(`📧 Email from ${from} had no image attachments`);
+      return;
+    }
+
+    for (const attachment of images) {
+      const name = attachment.filename || `photo.${attachment.contentType.split("/")[1] || "jpg"}`;
+      try {
+        await this.images.save(name, attachment.content);
+        this.imagesReceived += 1;
+      } catch (error) {
+        console.error("📧 Failed to save attachment:", error);
+      }
+    }
+    console.log(`📧 Saved ${images.length} photo(s) from ${from}`);
+  }
+
+  getStatus() {
+    return {
+      configured: config.email.configured,
+      connected: this.connected,
+      lastCheck: this.lastCheck?.toISOString() ?? null,
+      imagesReceived: this.imagesReceived,
+      error: this.lastError ?? null,
+    };
   }
 }
